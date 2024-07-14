@@ -3,6 +3,8 @@ package io.unbong.ubmq.module;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * result for mqServer
  *
@@ -29,5 +31,9 @@ public class Result<T> {
 
     public static Result ok(String msg) {
         return new Result(1, msg);
+    }
+
+    public static Result<List<UBMessage<?>>> msg(List<UBMessage<?>> msg) {
+        return  new Result<>(1, msg );
     }
 }

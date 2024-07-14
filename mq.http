@@ -1,0 +1,2 @@
+## sub
+GET http://localhost:8765/ubmq/sub?t=cn.kimking.test&cid=1

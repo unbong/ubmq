@@ -1,6 +1,7 @@
 package io.unbong.ubmq.client;
 
 import io.unbong.ubmq.module.UBMessage;
+import lombok.Getter;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -14,8 +15,7 @@ public class UBConsumer<T> {
 
     private String id; //
     UBBroker broker;
-    String topic ;
-    UBMq mq;
+//    String topic ;
 
     static AtomicInteger idgen = new AtomicInteger(0);
 
@@ -24,20 +24,36 @@ public class UBConsumer<T> {
         this.id = "CID" + idgen.getAndIncrement();
     }
 
-    public void subscribe(String topic)
+    public void sub(String topic)
     {
-        this.topic = topic;
-        mq = broker.find(topic);
-        if(mq == null ) throw new RuntimeException("Topic not found");
+        broker.sub(topic, id);
     }
 
-    public UBMessage<T> poll(long timeout)
+    public void unsub(String topic)
     {
-        return mq.poll(timeout);
+        broker.unsub(topic, id);
     }
 
-    public void addListener(UBListener<T> listener)
+    public UBMessage<T> recv(String topic)
     {
-        mq.addListener(listener);
+        return broker.recv(topic, id);
+    }
+
+    public boolean ack(String topic, int offset) {
+        return broker.ack(topic, id, offset);
+    }
+
+    public void addListener(String topic, UBListener<T> listener)
+    {
+        this.listener = listener;
+        broker.addConsumer(topic, this);
+    }
+
+    @Getter
+    private UBListener listener;
+
+    public boolean ack(String topic, UBMessage<?> message) {
+        int offset = Integer.parseInt(message.getHeaders().get("X-offset"));
+        return ack(topic, offset);
     }
 }

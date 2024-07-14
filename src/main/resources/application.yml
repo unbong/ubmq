@@ -3,3 +3,6 @@ server:
 spring:
     application:
         name: ubmq
+logging:
+    level:
+      io.unbong: DEBUG
