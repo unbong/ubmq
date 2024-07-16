@@ -1,6 +1,8 @@
 package io.unbong.ubmq.server;
 
 import io.unbong.ubmq.module.UBMessage;
+import io.unbong.ubmq.store.Indexer;
+import io.unbong.ubmq.store.Store;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -32,8 +34,11 @@ public class MessageQueue {
     private UBMessage<?> [] queue= new UBMessage[1024*10];
     private int index = 0;
 
+    private Store store;
     public MessageQueue(String topic) {
         this.topic = topic;
+        store = new Store(topic);
+        store.init();
     }
 
     public static List<UBMessage<?>> batch(String topic, String consumerId, int size) {
@@ -57,22 +62,21 @@ public class MessageQueue {
 
     }
 
-    public int send(UBMessage<?> message)
+    public int send(UBMessage<String> message)
     {
-        if (index >= queue.length){
-            return -1;
-        }
-        message.getHeaders().put("X-offset", String.valueOf(index));
-        queue[index++] = message;
+        int offset = store.position();
+        message.getHeaders().put("X-offset", String.valueOf(offset));
+
+        store.write(message);
         log.debug("---> send mq stored msg: {}", message);
-        return  index;
+        return  offset;
     }
 
 
 
-    public UBMessage<?> receive(int recIndex){
-        if(recIndex <= index) return queue[recIndex];
-        return null;
+    public UBMessage<?> receive(int offset){
+//        if(offset <= index) return queue[offset];
+        return store.read(offset);
     }
 
     public void subscribe(MessageSubscription subscription){
@@ -114,11 +118,11 @@ public class MessageQueue {
         return mq.send(msg);
     }
 
-    public static UBMessage<?> recv(String topic, String consumerId, String cosumerId, int index)
+    public static UBMessage<?> recv(String topic, String consumerId, String cosumerId, int offset)
     {
         MessageQueue mq = queues.get(topic);
         if(mq == null) throw new RuntimeException("topic not found");
-        if(mq.subscriptions.containsKey(consumerId))    return mq.receive(index);
+        if(mq.subscriptions.containsKey(consumerId))    return mq.receive(offset);
         throw new RuntimeException("subscription not found for topic/consumerId " + topic + " / " + consumerId) ;
     }
 
@@ -134,9 +138,17 @@ public class MessageQueue {
         MessageQueue mq = queues.get(topic);
         if(mq == null) throw new RuntimeException("topic not found");
         if(mq.subscriptions.containsKey(consumerId))   {
-            int index = mq.subscriptions.get(consumerId).getOffset();
-            log.debug("---> recv: topic/cid/index, {}/{}/{}",topic, consumerId, index+1);
-            UBMessage<?> res = mq.receive(index+1);
+
+            int offset = 0;
+            if(mq.subscriptions.get(consumerId).getOffset() > -1)
+            {
+                offset= mq.subscriptions.get(consumerId).getOffset();
+                Indexer.Entry entry = Indexer.getEntry(topic, offset);
+                offset += entry.getLength();
+            }
+
+            log.debug("---> recv: topic/cid/index, {}/{}/{}",topic, consumerId, offset);
+            UBMessage<?> res = mq.receive(offset);
             log.debug("---> recv: message, {}",res);
             return res;
         }
@@ -151,7 +163,7 @@ public class MessageQueue {
         if(mq == null) throw new RuntimeException("topic not found");
         if(mq.subscriptions.containsKey(consumerId))   {
             MessageSubscription messageSubscription = mq.subscriptions.get(consumerId);
-            if(offset > messageSubscription.getOffset() && offset <= mq.index){
+            if(offset > messageSubscription.getOffset() && offset <= Store.SIZE){
 
                 messageSubscription.setOffset(offset);
                 log.debug("---> ack result: topic/cid/offset, {}/{}/{}",topic, consumerId, offset);

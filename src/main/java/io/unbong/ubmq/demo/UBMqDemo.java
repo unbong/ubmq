@@ -32,20 +32,21 @@ public class UBMqDemo {
 
         UBConsumer<?> consumer1 = broker.createConsumer(topic);
 //        consumer1.sub(topic);
-        consumer1.addListener(topic, (message)->{
-            System.out.println("---> onMessage " + message);
-        });
+//        consumer1.addListener(topic, (message)->{
+//            System.out.println("---> onMessage " + message);
+//        });
 
         for (int i = 0; i < 10; i++) {
             Order order  = new Order(ids, "item", i*100);
             producer.send(topic, new UBMessage<>(ids++, JSON.toJSONString(order), null));
         }
 
-//        for (int i = 0; i < 10; i++) {
-//            UBMessage<String> message = (UBMessage<String>)consumer1.recv(topic);
-//            System.out.println(message.toString());
-//            consumer1.ack(topic, message);
-//        }
+        for (int i = 0; i < 10; i++) {
+            System.out.println("---> recv message index " + i );
+            UBMessage<String> message = (UBMessage<String>)consumer1.recv(topic);
+            System.out.println(message.toString());
+            consumer1.ack(topic, message);
+        }
 
         while(true){
             char c = (char)System.in.read();
